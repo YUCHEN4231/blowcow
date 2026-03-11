@@ -23,14 +23,13 @@
 
         body {
             min-height: 100vh;
-            background: #1a3f2c;  /* 深綠色毛氈基底 */
+            background: #1a3f2c;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 16px;
         }
 
-        /* 主遊戲卡片外框 — 仿毛氈桌面 */
         .game-container {
             width: 1300px;
             max-width: 100%;
@@ -41,10 +40,9 @@
             border-radius: 64px 64px 48px 48px;
             box-shadow: 0 20px 30px rgba(0,0,0,0.7), inset 0 2px 5px rgba(255,255,200,0.3);
             padding: 32px 24px;
-            border: 6px solid #b89b7b; /* 仿木桌邊 */
+            border: 6px solid #b89b7b;
         }
 
-        /* 大廳區塊 (彈性切換) */
         .lobby-panel, .game-panel {
             transition: all 0.2s ease;
         }
@@ -53,7 +51,6 @@
             display: none !important;
         }
 
-        /* 大廳卡片 */
         .lobby-card {
             background: #ecd9b4;
             padding: 40px 32px;
@@ -133,15 +130,7 @@
             font-weight: 500;
             flex: 1;
         }
-        .player-count-badge {
-            background: #b48b5a;
-            color: #1f2f1a;
-            padding: 6px 16px;
-            border-radius: 40px;
-            font-weight: 600;
-        }
 
-        /* 遊戲面板 */
         .game-panel {
             color: #faf0cf;
         }
@@ -159,6 +148,7 @@
             font-size: 1.2rem;
             flex-wrap: wrap;
             gap: 10px;
+            align-items: center;
         }
 
         .room-code {
@@ -176,7 +166,6 @@
             border-radius: 40px;
         }
 
-        /* 中央桌面 — 顯示最近宣稱 & 出牌 */
         .table-center {
             background: #2f6b44;
             border-radius: 120px 120px 60px 60px;
@@ -205,7 +194,6 @@
             color: #734;
         }
 
-        /* 座位區 (玩家環) */
         .seats-container {
             display: flex;
             flex-wrap: wrap;
@@ -254,7 +242,6 @@
             gap: 2px;
             margin-top: 6px;
         }
-        /* 迷你手牌樣式 (對手) */
         .opponent-card {
             width: 32px;
             height: 44px;
@@ -263,7 +250,6 @@
             border: 2px solid #faeacb;
             box-shadow: 0 3px 0 #4e3f2b;
         }
-        /* 自己的手牌 (大卡片) 用在控制區下方 */
         .my-hand {
             background: #1b4a29;
             border-radius: 60px;
@@ -305,7 +291,6 @@
             font-size: 2rem;
         }
 
-        /* 遊戲控制按鈕列 */
         .action-bar {
             display: flex;
             flex-wrap: wrap;
@@ -335,20 +320,12 @@
             border-bottom: 1px dashed #bb9f73;
         }
 
-        .badge {
-            background: #c9a569;
-            color: #1d331d;
-            padding: 2px 12px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-        }
-
         i { margin-right: 5px; }
     </style>
 </head>
 <body>
     <div class="game-container" id="gameContainer">
-        <!-- 大廳區塊 (初始可見) -->
+        <!-- 大廳區塊 -->
         <div id="lobbyPanel" class="lobby-panel">
             <div class="lobby-card">
                 <div class="lobby-title">🐂 吹牛幫我吹</div>
@@ -370,7 +347,7 @@
             </div>
         </div>
 
-        <!-- 遊戲區塊 (預設隱藏) -->
+        <!-- 遊戲區塊 -->
         <div id="gamePanel" class="game-panel hidden">
             <div class="info-bar">
                 <span class="room-code" id="roomIdDisplay">📌 房間: ---</span>
@@ -386,10 +363,10 @@
                 </div>
             </div>
 
-            <!-- 座位區 (動態填入其他玩家) -->
+            <!-- 座位區 -->
             <div id="seatsContainer" class="seats-container"></div>
 
-            <!-- 自己手牌區域 (大卡片, 可選) -->
+            <!-- 自己手牌區域 -->
             <div id="myHandContainer" class="my-hand"></div>
 
             <!-- 動作按鈕列 -->
@@ -413,23 +390,23 @@
             const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
             const TOTAL_CARDS = 52;
 
-            // 全域遊戲狀態 (同步所有玩家)
+            // 全域遊戲狀態
             let gameState = {
-                players: [],              // { id, name, cardCount, hand(自己用) }
-                currentTurn: null,         // playerId
-                claim: { rank: null, count: 0, playerId: null },   // 目前宣稱
-                phase: 'lobby',             // lobby, playing, ended
-                playerSeatMap: new Map(),   // 輔助 peerId -> index
+                players: [],
+                currentTurn: null,
+                claim: { rank: null, count: 0, playerId: null },
+                phase: 'lobby',
                 hostId: null,
             };
 
-            // 本地專用 (不共享)
+            // 本地專用
             let myPeerId = null;
-            let myHand = [];                // 自己的卡片 [{suit, rank}]
-            let conns = new Map();           // 連線池 peerId -> DataConnection
+            let myHand = [];
+            let conns = new Map();
             let peer = null;
             let isHost = false;
-            let selectedCardIndices = new Set(); // 選中要打出的牌
+            let selectedCardIndices = new Set();
+            let pendingJoinConfirmation = false; // 避免重複加入
 
             // UI 元素
             const lobbyDiv = document.getElementById('lobbyPanel');
@@ -452,7 +429,6 @@
             const startGameBtn = document.getElementById('startGameBtn');
             const gameLogDiv = document.getElementById('gameLog');
 
-            // 輔助 log
             function addLog(message, isLocal = true) {
                 const entry = document.createElement('div');
                 entry.className = 'log-entry';
@@ -462,67 +438,64 @@
                 if (isLocal && peer) broadcastToAll({ type: 'log', message });
             }
 
-            // 廣播給所有連線的玩家 (除了自己)
             function broadcastToAll(msg, exclude = null) {
                 conns.forEach((conn, id) => {
                     if (id !== exclude && conn.open) {
-                        conn.send(msg);
+                        try { conn.send(msg); } catch (e) {}
                     }
                 });
             }
 
-            // 完全重置回大廳狀態 (本地)
             function resetToLobby() {
                 // 關閉所有連線
                 conns.forEach(conn => conn.close());
                 conns.clear();
-                // 重設狀態
                 gameState = {
                     players: [],
                     currentTurn: null,
                     claim: { rank: null, count: 0, playerId: null },
                     phase: 'lobby',
-                    playerSeatMap: new Map(),
                     hostId: null,
                 };
                 myHand = [];
                 selectedCardIndices.clear();
                 isHost = false;
-                // 切換 UI
+                pendingJoinConfirmation = false;
                 lobbyDiv.classList.remove('hidden');
                 gameDiv.classList.add('hidden');
                 addLog('👋 已退出房間，返回大廳');
             }
 
-            // 刷新大廳/遊戲 UI 根據 state
             function refreshUI() {
-                // 更新人數
+                // 更新人數顯示
                 const playerCount = gameState.players.length;
                 playerCountSpan.innerText = `👥 ${playerCount}/6`;
-                if (gameState.hostId) roomIdDisplay.innerText = `📌 房間: ${gameState.hostId.slice(0,8)}..`;
+                if (gameState.hostId) {
+                    roomIdDisplay.innerText = `📌 房間: ${gameState.hostId.slice(0,8)}...`;
+                }
 
-                // 座位區渲染 (不包含自己？但我們把所有人列出來，標註 self)
+                // 座位區渲染
                 seatsDiv.innerHTML = '';
                 gameState.players.forEach(p => {
                     const seat = document.createElement('div');
                     seat.className = `player-seat ${gameState.currentTurn === p.id ? 'current-turn' : ''}`;
                     const isMe = p.id === myPeerId;
-                    const cardCount = isMe ? myHand.length : (p.cardCount !== undefined ? p.cardCount : '?');
+                    const cardCount = isMe ? myHand.length : (p.cardCount || 0);
                     seat.innerHTML = `
                         <div class="player-name">
                             <i class="fas fa-user-circle"></i> ${p.name} ${isMe ? '(你)' : ''}
                             <span class="card-count">🃏 ${cardCount}</span>
                         </div>
                         <div class="hand-cards">
-                            ${isMe ? '' : Array.from({ length: Math.min(cardCount, 5) }).map(() => '<div class="opponent-card"></div>').join('')}
-                            ${isMe ? '<span style="color:#ecd59b;">(下方手牌)</span>' : ''}
+                            ${!isMe ? Array.from({ length: Math.min(cardCount, 5) }).map(() => '<div class="opponent-card"></div>').join('') : ''}
+                            ${isMe && gameState.phase === 'playing' ? '<span style="color:#ecd59b;">(下方手牌)</span>' : ''}
                         </div>
                     `;
                     seatsDiv.appendChild(seat);
                 });
 
                 // 更新中央宣稱
-                if (gameState.claim.rank) {
+                if (gameState.claim && gameState.claim.rank) {
                     claimRankSpan.innerText = gameState.claim.rank;
                     claimCountSpan.innerText = gameState.claim.count;
                 } else {
@@ -530,12 +503,12 @@
                     claimCountSpan.innerText = '0';
                 }
 
-                // 更新輪到誰
+                // 更新回合指示
                 const turnPlayer = gameState.players.find(p => p.id === gameState.currentTurn);
                 turnIndicator.innerText = turnPlayer ? `⚡ 輪到: ${turnPlayer.name}` : '⚡ 等待開始';
 
-                // 自己手牌渲染 (可選中)
-                if (gameState.phase === 'playing') {
+                // 自己手牌渲染
+                if (gameState.phase === 'playing' && myHand.length > 0) {
                     myHandDiv.innerHTML = '';
                     myHand.forEach((card, idx) => {
                         const cardDiv = document.createElement('div');
@@ -546,7 +519,7 @@
                         cardDiv.innerHTML = `<div class="card-rank">${card.rank}</div><div class="card-suit">${card.suit}</div>`;
                         cardDiv.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            if (gameState.currentTurn !== myPeerId) return;
+                            if (gameState.currentTurn !== myPeerId || gameState.phase !== 'playing') return;
                             const i = parseInt(cardDiv.dataset.index);
                             if (selectedCardIndices.has(i)) selectedCardIndices.delete(i);
                             else selectedCardIndices.add(i);
@@ -555,28 +528,28 @@
                         myHandDiv.appendChild(cardDiv);
                     });
                 } else {
-                    myHandDiv.innerHTML = '<div style="color:#eee;">等待遊戲開始</div>';
+                    myHandDiv.innerHTML = gameState.phase === 'playing' ? 
+                        '<div style="color:#eee;">你沒有手牌</div>' : 
+                        '<div style="color:#eee;">等待遊戲開始</div>';
                 }
 
-                // 開始按鈕僅房主在大廳顯示
-                if (isHost && gameState.phase === 'lobby' && gameState.players.length >= 3) {
-                    startGameBtn.disabled = false;
-                } else {
-                    startGameBtn.disabled = true;
-                }
-
-                // 行動按鈕（出牌/吹牛）啟用條件：playing, 自己的回合
+                // 開始按鈕狀態
+                startGameBtn.disabled = !(isHost && gameState.phase === 'lobby' && gameState.players.length >= 3);
+                
+                // 行動按鈕狀態
                 const myTurn = (gameState.currentTurn === myPeerId && gameState.phase === 'playing');
                 playBtn.disabled = !myTurn || selectedCardIndices.size === 0;
-                bluffBtn.disabled = !myTurn || gameState.claim.playerId === null; // 要有上家宣稱才能吹牛
+                bluffBtn.disabled = !myTurn || !gameState.claim || !gameState.claim.playerId;
             }
 
-            // 發牌 (僅房主)
             function distributeCards() {
                 if (!isHost || gameState.phase !== 'lobby') return;
                 const players = gameState.players;
                 const playerCount = players.length;
-                if (playerCount < 3) return addLog('至少需要3人才開始', true);
+                if (playerCount < 3) {
+                    addLog('至少需要3人才開始');
+                    return;
+                }
 
                 // 建立牌堆
                 let deck = [];
@@ -586,7 +559,6 @@
                     [deck[i], deck[j]] = [deck[j], deck[i]];
                 }
 
-                // 均分 (可能有餘牌，但沒關係，少幾張)
                 const baseSize = Math.floor(TOTAL_CARDS / playerCount);
                 const remainder = TOTAL_CARDS % playerCount;
                 let start = 0;
@@ -597,220 +569,281 @@
                     const hand = deck.slice(start, start + size);
                     start += size;
                     newHands[p.id] = hand;
-                    if (p.id === myPeerId) myHand = hand.map(c => ({ ...c })); // 深拷貝
                 });
 
-                // 更新 gameState 玩家手牌數量
+                // 更新自己的手牌
+                if (newHands[myPeerId]) {
+                    myHand = newHands[myPeerId].map(c => ({ ...c }));
+                }
+
+                // 更新 gameState
                 gameState.players = players.map(p => ({
                     ...p,
                     cardCount: newHands[p.id].length,
                 }));
-
-                // 設定第一個玩家回合
                 gameState.currentTurn = players[0].id;
                 gameState.phase = 'playing';
                 gameState.claim = { rank: null, count: 0, playerId: null };
                 selectedCardIndices.clear();
 
-                // 廣播給所有人 (包含自己) 完整的 gameState 與自己的手牌(私密)
-                broadcastToAll({ type: 'sync_state', state: gameState });  // 公開狀態
-                // 單獨傳送私人手牌
+                // 廣播給所有人
+                broadcastToAll({ type: 'sync_state', state: gameState });
+                
+                // 單獨發送私人手牌
                 conns.forEach((conn, id) => {
                     if (newHands[id]) {
                         conn.send({ type: 'private_hand', hand: newHands[id] });
                     }
                 });
-                // 自己也更新顯示
+
                 refreshUI();
-                addLog('遊戲開始！由房主發牌。');
+                addLog('🎮 遊戲開始！由房主發牌。');
             }
 
-            // 處理吹牛 (某玩家喊 bluff)
             function handleBluff(callerId) {
-                if (!gameState.claim.playerId || gameState.phase !== 'playing') return;
+                if (!gameState.claim || !gameState.claim.playerId || gameState.phase !== 'playing') return;
+                
                 const lastPlayerId = gameState.claim.playerId;
-                const lastClaim = gameState.claim;
-                const lastPlayer = gameState.players.find(p => p.id === lastPlayerId);
-                // 簡單取巧：這裡真實檢查需要知道上家出的牌，但demo簡化為隨機50%機率
-                // 但為了遊戲性，我們用一個布林判斷: 是否吹牛成功？以隨機代替，理想應該用實際出的牌，但需儲存上次出牌。
-                // 我們實作一個簡單版本：如果上家出牌時我們有暫存他實際出的牌，但暫不複雜，隨機決定。
-                // 為了避免複雜，我們用基於上次宣稱的隨機判定 (但正規玩法是檢查是否與宣稱相符)
-                const isBluffSuccess = Math.random() < 0.5;  // 示範用，真實情況要根據實際牌
-
+                // 簡化版：50%機率成功
+                const isBluffSuccess = Math.random() < 0.5;
                 const loserId = isBluffSuccess ? lastPlayerId : callerId;
-                const winnerId = isBluffSuccess ? callerId : lastPlayerId;
-                addLog(`🏆 ${isBluffSuccess ? '吹牛成功！' : '吹牛失敗...'} 罰 ${loserId.slice(0,5)} 拿一張牌`);
 
-                // 從牌堆「罰牌」：向房主要一張牌給輸家（簡化: 增加cardCount）
+                addLog(`🎭 ${isBluffSuccess ? '吹牛成功！' : '吹牛失敗...'} 罰 ${loserId.slice(0,6)} 拿一張牌`);
+
+                // 罰牌
                 gameState.players = gameState.players.map(p => {
-                    if (p.id === loserId) p.cardCount += 1;
+                    if (p.id === loserId) {
+                        return { ...p, cardCount: (p.cardCount || 0) + 1 };
+                    }
                     return p;
                 });
-                // 重設宣稱，換下家(原吹牛者的下一家)
-                const nextIdx = (gameState.players.findIndex(p => p.id === callerId) + 1) % gameState.players.length;
+
+                // 如果是自己輸了，增加手牌（簡單模擬）
+                if (loserId === myPeerId && isHost) {
+                    // 房主可以簡單增加一張牌，但這裡只是演示
+                }
+
+                // 換下家
+                const callerIndex = gameState.players.findIndex(p => p.id === callerId);
+                const nextIdx = (callerIndex + 1) % gameState.players.length;
                 gameState.currentTurn = gameState.players[nextIdx].id;
                 gameState.claim = { rank: null, count: 0, playerId: null };
-                selectedCardIndices.clear();
+                
                 broadcastToAll({ type: 'sync_state', state: gameState });
                 refreshUI();
             }
 
             // 初始化 PeerJS
             function initPeer() {
-                peer = new Peer(); 
+                peer = new Peer();
+                
                 peer.on('open', (id) => {
                     myPeerId = id;
                     peerIdSpan.innerText = id;
                     addLog(`✅ Peer 就緒: ${id}`);
                 });
+
                 peer.on('connection', (conn) => {
                     conn.on('open', () => {
-                        conn.on('data', (data) => handleData(conn, data));
                         conns.set(conn.peer, conn);
                         addLog(`🔗 新連線: ${conn.peer}`);
-                        // 如果是房主，可以發送現有大廳狀態
+                        
+                        conn.on('data', (data) => handleData(conn, data));
+                        
+                        // 如果是房主，發送當前狀態
                         if (isHost) {
                             conn.send({ type: 'sync_state', state: gameState });
                         }
                     });
                 });
+
+                peer.on('error', (err) => {
+                    console.error('Peer error:', err);
+                    addLog(`❌ 連線錯誤: ${err.type}`);
+                });
             }
-            initPeer();
 
             // 資料處理
             function handleData(conn, data) {
-                if (data.type === 'sync_state') {
-                    // 合併公開狀態 (保留自己的手牌數量，但不要覆蓋手牌)
-                    const oldHand = myHand;
-                    gameState = data.state;
-                    gameState.playerSeatMap.clear();
-                    gameState.players.forEach((p, idx) => gameState.playerSeatMap.set(p.id, idx));
-                    if (myPeerId) {
+                console.log('Received:', data.type);
+                
+                switch(data.type) {
+                    case 'sync_state':
+                        // 接收公開狀態
+                        gameState = data.state;
+                        // 確保自己的手牌數正確
                         const self = gameState.players.find(p => p.id === myPeerId);
-                        if (self) self.cardCount = myHand.length; // 保持本地實際手牌
-                    }
-                    refreshUI();
-                } else if (data.type === 'private_hand') {
-                    myHand = data.hand.map(c => ({ ...c }));
-                    refreshUI();
-                } else if (data.type === 'log') {
-                    addLog(`📡 ${data.message}`, false);
-                } else if (data.type === 'play_move') {
-                    // 其他玩家出牌，更新宣稱並減少手牌(透過後續sync)
-                    // 簡化: 由房主或發起方廣播 sync_state，此處僅接收 sync_state
-                } else if (data.type === 'bluff_call') {
-                    if (isHost) {  // 房主處理吹牛判定
-                        handleBluff(data.callerId);
-                    }
+                        if (self) {
+                            self.cardCount = myHand.length;
+                        }
+                        refreshUI();
+                        break;
+
+                    case 'private_hand':
+                        // 接收私人手牌
+                        myHand = data.hand.map(c => ({ ...c }));
+                        refreshUI();
+                        break;
+
+                    case 'join_req':
+                        // 處理加入請求（僅房主）
+                        if (isHost && gameState.phase === 'lobby') {
+                            const newId = data.myId;
+                            if (!gameState.players.find(p => p.id === newId) && gameState.players.length < 6) {
+                                gameState.players.push({ 
+                                    id: newId, 
+                                    name: data.name || `玩家-${newId.slice(0,4)}`, 
+                                    cardCount: 0 
+                                });
+                                broadcastToAll({ type: 'sync_state', state: gameState });
+                                addLog(`👤 玩家加入: ${data.name}`);
+                                refreshUI();
+                            }
+                        }
+                        break;
+
+                    case 'bluff_call':
+                        if (isHost) {
+                            handleBluff(data.callerId);
+                        }
+                        break;
+
+                    case 'log':
+                        addLog(`📡 ${data.message}`, false);
+                        break;
                 }
-                refreshUI();
             }
 
             // 建立房間
             createBtn.addEventListener('click', () => {
+                if (!myPeerId) {
+                    alert('請等待 Peer 初始化完成');
+                    return;
+                }
                 isHost = true;
-                gameState.hostId = myPeerId;
-                gameState.players = [{ id: myPeerId, name: `玩家-${myPeerId.slice(0,4)}`, cardCount: 0 }];
-                gameState.phase = 'lobby';
-                gameState.currentTurn = null;
+                gameState = {
+                    players: [{ id: myPeerId, name: `房主-${myPeerId.slice(0,4)}`, cardCount: 0 }],
+                    currentTurn: null,
+                    claim: { rank: null, count: 0, playerId: null },
+                    phase: 'lobby',
+                    hostId: myPeerId,
+                };
+                myHand = [];
                 lobbyDiv.classList.add('hidden');
                 gameDiv.classList.remove('hidden');
                 refreshUI();
-                addLog('你已成為房主，等待其他玩家加入 (複製你的PeerID給他們)');
+                addLog('👑 你已成為房主，等待其他玩家加入');
             });
 
             // 加入房間
             joinBtn.addEventListener('click', () => {
+                if (!myPeerId) {
+                    alert('請等待 Peer 初始化完成');
+                    return;
+                }
                 const hostId = roomPeerInput.value.trim();
-                if (!hostId) return;
+                if (!hostId) {
+                    alert('請輸入房主ID');
+                    return;
+                }
+                if (hostId === myPeerId) {
+                    alert('不能加入自己的房間');
+                    return;
+                }
+
                 const conn = peer.connect(hostId);
                 conn.on('open', () => {
                     conns.set(hostId, conn);
-                    conn.send({ type: 'join_req', myId: myPeerId, name: `玩家-${myPeerId.slice(0,4)}` });
+                    conn.send({ 
+                        type: 'join_req', 
+                        myId: myPeerId, 
+                        name: `玩家-${myPeerId.slice(0,4)}` 
+                    });
                     conn.on('data', (data) => handleData(conn, data));
+                    
                     lobbyDiv.classList.add('hidden');
                     gameDiv.classList.remove('hidden');
                     isHost = false;
-                    addLog(`🚪 加入房間 ${hostId}`);
+                    addLog(`🚪 嘗試加入房間: ${hostId.slice(0,8)}...`);
+                });
+
+                conn.on('error', (err) => {
+                    alert('無法連接到房主，請確認ID正確');
                 });
             });
 
             // 複製ID
             copyBtn.addEventListener('click', () => {
-                navigator.clipboard?.writeText(myPeerId);
-                addLog('📋 Peer ID 已複製');
+                if (myPeerId) {
+                    navigator.clipboard?.writeText(myPeerId);
+                    addLog('📋 Peer ID 已複製');
+                }
             });
 
-            // 退出房間按鈕
+            // 退出房間
             leaveBtn.addEventListener('click', () => {
                 if (confirm('確定退出目前房間？')) {
                     resetToLobby();
                 }
             });
 
-            // 房主開始遊戲
+            // 開始遊戲
             startGameBtn.addEventListener('click', () => {
                 if (isHost && gameState.players.length >= 3) {
                     distributeCards();
-                } else alert('需要至少3人且是房主');
+                } else {
+                    alert('需要至少3人且是房主');
+                }
             });
 
-            // 出牌 (自己的回合)
+            // 出牌
             playBtn.addEventListener('click', () => {
-                if (gameState.currentTurn !== myPeerId) return;
-                if (selectedCardIndices.size === 0) return;
-                // 挑選要出的牌 (暫時不實際移除手牌，而是更新宣稱後透過sync)
+                if (gameState.currentTurn !== myPeerId || selectedCardIndices.size === 0) return;
+
                 const cardsToPlay = Array.from(selectedCardIndices).map(i => myHand[i]);
-                // 決定宣稱的rank (簡單使用第一張牌的rank, 吹牛可以任意)
-                const claimedRank = cardsToPlay[0].rank;  // 可以任意改，但demo簡單一致
+                const claimedRank = cardsToPlay[0].rank;
                 const count = cardsToPlay.length;
-                // 從手牌移除
+
+                // 移除手牌
                 myHand = myHand.filter((_, idx) => !selectedCardIndices.has(idx));
                 selectedCardIndices.clear();
 
-                // 更新 gameState (本地)
+                // 更新狀態
                 const selfIdx = gameState.players.findIndex(p => p.id === myPeerId);
                 gameState.players[selfIdx].cardCount = myHand.length;
                 gameState.claim = { rank: claimedRank, count, playerId: myPeerId };
-                // 輪到下一家
+                
                 const nextIdx = (selfIdx + 1) % gameState.players.length;
                 gameState.currentTurn = gameState.players[nextIdx].id;
 
-                // 廣播新狀態
                 broadcastToAll({ type: 'sync_state', state: gameState });
                 refreshUI();
                 addLog(`🎲 你宣稱打出 ${count} 張 ${claimedRank}`);
             });
 
-            // 吹牛按鈕
+            // 吹牛
             bluffBtn.addEventListener('click', () => {
                 if (gameState.currentTurn !== myPeerId) return;
-                if (!gameState.claim.playerId) return alert('還沒人宣稱');
-                // 發送吹牛事件，最好由房主判定
+                if (!gameState.claim || !gameState.claim.playerId) {
+                    alert('還沒人宣稱');
+                    return;
+                }
+
                 if (isHost) {
                     handleBluff(myPeerId);
                 } else {
-                    // 轉發給房主 (假設房主是host)
+                    // 找房主
                     const hostConn = Array.from(conns.values()).find(c => c.peer === gameState.hostId);
-                    if (hostConn) hostConn.send({ type: 'bluff_call', callerId: myPeerId });
+                    if (hostConn) {
+                        hostConn.send({ type: 'bluff_call', callerId: myPeerId });
+                    } else {
+                        alert('無法連接到房主');
+                    }
                 }
             });
 
-            // 處理加入請求 (簡易)
-            peer.on('connection', (conn) => {
-                conn.on('data', (data) => {
-                    if (data.type === 'join_req' && isHost) {
-                        const newId = data.myId;
-                        if (!gameState.players.find(p => p.id === newId) && gameState.players.length < 6) {
-                            gameState.players.push({ id: newId, name: data.name, cardCount: 0 });
-                            broadcastToAll({ type: 'sync_state', state: gameState });
-                            addLog(`👤 玩家加入: ${data.name}`);
-                        }
-                    }
-                });
-            });
-
-            // 初始刷新
+            // 啟動
+            initPeer();
             refreshUI();
         })();
     </script>
