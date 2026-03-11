@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>連線吹牛 · 線上多人即時 (3-6人)</title>
+    <!-- 使用 PeerJS (WebRTC) 建立點對點連線，不需伺服器儲存資料 -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+        }
+        body {
+            background: linear-gradient(145deg, #1e4b2e 0%, #2a6e3a 100%);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 12px;
+        }
+        .game-container {
+            max-width: 1400px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(4px);
+            border-radius: 56px;
+            padding: 24px;
+            box-shadow: 0 30px 40px rgba(0, 0, 0, 0.6);
+            border: 2px solid #c9a75e;
+        }
+        .connection-panel {
+            background: #2c3e2c;
+            border-radius: 100px;
+            padding: 20px 30px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 15px 30px;
+            margin-bottom: 20px;
+            border: 3px solid #bda46b;
+        }
+        .connection-panel input, .connection-panel button {
+            font-size: 1.2rem;
+            padding: 8px 18px;
+            border-radius: 50px;
+            border: 2px solid #836f42;
+            font-weight: bold;
+        }
+        .connection-panel input {
+            background: #faeac9;
+            min-width: 200px;
+        }
+        .connection-panel button {
+            background: #fcd9a7;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #6b3f1b;
+            transition: 0.07s;
+            border: 2px solid #a1662f;
+        }
+        .connection-panel button:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+        .my-id {
+            background: #1f3a3f;
+            color: #ffd966;
+            padding: 8px 25px;
+            border-radius: 40px;
+            font-weight: 700;
+            font-size: 1.3rem;
+            border: 2px solid gold;
+        }
+        .table {
+            background: #0f4d2b;
+            background-image: radial-gradient(circle at 30% 40%, #2b8c4a, #0a3b1e);
+            border-radius: 200px;
+            padding: 20px;
+            border: 8px solid #b3925c;
+            box-shadow: inset 0 0 30px #00000066, 0 10px 20px black;
+        }
+        .players-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px 20px;
+            margin-bottom: 30px;
+        }
+        .player-spot {
+            background: #2d2010;
+            border-radius: 40px 40px 20px 20px;
+            padding: 16px 12px 12px 12px;
+            box-shadow: 0 8px 0 #1a120a, 0 10px 20px black;
+            border: 2px solid #dbb87c;
+            min-width: 170px;
+            flex: 1 1 auto;
+            max-width: 210px;
+        }
+        .player-spot.active-turn {
+            box-shadow: 0 0 0 4px #f9e571, 0 8px 0 #1a120a;
+            transform: translateY(-5px);
+            border-color: #ffd966;
+        }
+        .player-name {
+            background: #ecd9b4;
+            border-radius: 30px;
+            padding: 6px 12px;
+            font-weight: 800;
+            text-align: center;
+            font-size: 1.2rem;
+            color: #2d2d2d;
+            border: 2px solid #b57c48;
+            margin-bottom: 12px;
+            white-space: nowrap;
+        }
+        .cards-area {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+            min-height: 90px;
+            background: #3b2c1c;
+            border-radius: 24px;
+            padding: 12px 8px;
+            border: 2px solid #ac8b5a;
+        }
+        .card-image {
+            width: 55px;
+            height: 75px;
+            border-radius: 8px;
+            box-shadow: 0 4px 0 #444, 0 6px 8px black;
+            background-size: cover;
+            border: 1px solid white;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        .card-back-image {
+            background-image: url('https://deckofcardsapi.com/static/card/back.png');
+            border: 2px solid gold;
+        }
+        .selected-card {
+            transform: scale(1.1) translateY(-8px);
+            box-shadow: 0 0 0 4px #ffd966, 0 8px 12px black;
+        }
+        .center-pile {
+            background: #342813;
+            border-radius: 50px;
+            padding: 24px 16px;
+            margin: 20px auto;
+            width: fit-content;
+            min-width: 320px;
+            border: 4px solid #cfb27c;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .pile-cards {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            min-height: 90px;
+            background: #56432b;
+            border-radius: 40px;
+            padding: 18px 25px;
+            border: 2px solid #e9c891;
+        }
+        .claim-box {
+            background: #e4cf9f;
+            border-radius: 60px;
+            padding: 12px 30px;
+            margin-top: 10px;
+            font-size: 1.7rem;
+            font-weight: 800;
+            display: flex;
+            gap: 20px;
+            border: 3px solid #aa7c4a;
+        }
+        .claim-rank, .claim-count {
+            background: #2b2b2b;
+            color: white;
+            border-radius: 40px;
+            padding: 5px 20px;
+            min-width: 70px;
+            text-align: center;
+        }
+        .claim-count { background: #fff; color: #001d3d; }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 14px;
+            margin: 20px 0;
+        }
+        button {
+            background: #fcd9a7;
+            border: 3px solid #a1662f;
+            border-radius: 50px;
+            padding: 12px 28px;
+            font-size: 1.3rem;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #6b3f1b;
+            transition: 0.07s;
+            min-width: 150px;
+        }
+        button:active {
+            transform: translateY(5px);
+            box-shadow: 0 2px 0 #6b3f1b;
+        }
+        button:disabled {
+            opacity: 0.4;
+            transform: translateY(3px);
+            pointer-events: none;
+        }
+        .call-bullshit-btn {
+            background: #c94f4f;
+            color: white;
+            border-color: #631d1d;
+            box-shadow: 0 6px 0 #4f1717;
+        }
+        .footer-stats {
+            color: #ffd78c;
+            font-weight: 600;
+            font-size: 1.2rem;
+            background: #1a2b1a;
+            border-radius: 40px;
+            padding: 8px 30px;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .winner-msg {
+            background: gold;
+            border-radius: 40px;
+            padding: 15px 35px;
+            font-size: 2rem;
+            font-weight: 900;
+            text-align: center;
+            border: 5px solid #b87c1b;
+        }
+        .peer-id-input {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+<div class="game-container">
+    <!-- 連線控制列 -->
+    <div class="connection-panel">
+        <div class="my-id" id="myPeerId">載入中...</div>
+        <input type="text" id="peerIdInput" placeholder="輸入對方ID">
+        <button id="connectBtn">➕ 連線至該ID</button>
+        <button id="broadcastGameBtn">📢 廣播開始遊戲 (房主)</button>
+    </div>
+
+    <div class="table">
+        <div id="playersContainer" class="players-row"></div>
+
+        <div class="center-pile">
+            <div class="pile-cards" id="pileCardsContainer"></div>
+            <div class="claim-box">
+                <span class="claim-rank" id="claimedRank">?</span>
+                <span>⚡</span>
+                <span class="claim-count" id="claimedCount">?</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="playSelectedBtn" disabled>▶ 打出所選牌</button>
+            <button id="callBullshitBtn" class="call-bullshit-btn" disabled>🤥 抓！吹牛</button>
+        </div>
+
+        <div id="winnerMessage" class="winner-msg" style="display: none;"></div>
+    </div>
+    <div class="footer-stats" id="turnIndicator">🔄 等待連線或房主開始</div>
+</div>
+
+<script>
+    (function(){
+        // ------ 撲克牌圖片API -----
+        function getCardImageURL(rank, suit) {
+            const suitMap = {'♠':'S','♥':'H','♦':'D','♣':'C'};
+            let rankCode = rank === '10' ? '0' : rank;
+            return `https://deckofcardsapi.com/static/card/${rankCode}${suitMap[suit]}.png`;
+        }
+        const CARD_BACK_URL = 'https://deckofcardsapi.com/static/card/back.png';
+
+        // ------ 遊戲狀態 (主機完全一致) -----
+        let players = [];                // { id: peerId, name: 玩家x, cards: [] }  自己就是本機
+        let currentPlayerIndex = 0;
+        let gameActive = false;
+        let pile = [];
+        let currentClaim = null;
+        let selectedCardsIndices = [];
+        let playerCount = 4;             // 預設
+        let myPeerId = '';
+        let isHost = false;              // 第一個建立房間的人 (負責開始遊戲)
+        let myPlayerIndex = -1;           // 自己在players陣列中的索引
+
+        // PeerJS 連線
+        let peer = null;
+        let connections = [];             // 存所有連線 (PeerJS DataConnection)
+        let hostConnection = null;         // 房主的連線 (非房主連到房主)
+
+        // DOM
+        const playersContainer = document.getElementById('playersContainer');
+        const pileCardsContainer = document.getElementById('pileCardsContainer');
+        const claimedRankSpan = document.getElementById('claimedRank');
+        const claimedCountSpan = document.getElementById('claimedCount');
+        const playSelectedBtn = document.getElementById('playSelectedBtn');
+        const callBullshitBtn = document.getElementById('callBullshitBtn');
+        const turnIndicator = document.getElementById('turnIndicator');
+        const winnerMsgDiv = document.getElementById('winnerMessage');
+        const myPeerIdSpan = document.getElementById('myPeerId');
+        const peerIdInput = document.getElementById('peerIdInput');
+        const connectBtn = document.getElementById('connectBtn');
+        const broadcastGameBtn = document.getElementById('broadcastGameBtn');
+
+        // ------ 初始化Peer -----
+        function initPeer() {
+            peer = new Peer(); // 隨機ID
+            peer.on('open', (id) => {
+                myPeerId = id;
+                myPeerIdSpan.innerText = `我的ID: ${id}`;
+                console.log('我的PeerID:', id);
+                // 預設自己是房主 (只有自己時)
+                isHost = true;
+                myPlayerIndex = 0;
+            });
+
+            peer.on('connection', (conn) => {
+                conn.on('open', () => {
+                    console.log('收到連線 from', conn.peer);
+                    connections.push(conn);
+                    setupConnection(conn);
+                    // 告訴新成員目前的遊戲狀態 (全量同步)
+                    if (gameActive) {
+                        sendGameState(conn);
+                    }
+                });
+            });
+        }
+
+        // 設定連線監聽
+        function setupConnection(conn) {
+            conn.on('data', (data) => {
+                handleMessage(data, conn);
+            });
+            conn.on('close', () => {
+                console.log('連線關閉', conn.peer);
+                connections = connections.filter(c => c.peer !== conn.peer);
+                // 簡易: 若人數不足則遊戲中止
+                if (gameActive) alert('有人斷線, 遊戲可能異常');
+            });
+        }
+
+        // 主動連線至某ID
+        function connectToPeer(targetId) {
+            if (!peer) return alert('Peer 還沒準備好');
+            const conn = peer.connect(targetId);
+            conn.on('open', () => {
+                console.log('連線成功到', targetId);
+                connections.push(conn);
+                setupConnection(conn);
+                // 非房主身分
+                isHost = false;
+                hostConnection = conn; // 記錄房主連線
+                // 發送加入訊息: 告知房主自己的基本資訊
+                conn.send({ type: 'join', name: `玩家${connections.length+1}`, peerId: myPeerId });
+            });
+            conn.on('error', (err) => alert('連線失敗: ' + err));
+        }
+
+        // 廣播給所有人 (除了發送者可以排除)
+        function broadcastToAll(message, excludeConn = null) {
+            connections.forEach(conn => {
+                if (conn !== excludeConn && conn.open) {
+                    conn.send(message);
+                }
+            });
+        }
+
+        // 處理接收訊息
+        function handleMessage(msg, conn) {
+            console.log('收到訊息:', msg.type);
+            if (msg.type === 'join') {
+                // 房主收到新玩家加入，加入players陣列
+                if (!gameActive) {
+                    // 尚未開始遊戲，可加入
+                    const newPlayer = {
+                        peerId: msg.peerId,
+                        name: msg.name,
+                        cards: []
+                    };
+                    players.push(newPlayer);
+                    // 通知所有人更新玩家列表 (但不發給剛加入的那個，因為他還沒有players)
+                    broadcastToAll({ type: 'playerList', players: players.map(p => ({ peerId: p.peerId, name: p.name })) }, conn);
+                    // 也單獨發給新人完整的players列表
+                    conn.send({ type: 'playerList', players: players.map(p => ({ peerId: p.peerId, name: p.name })) });
+                }
+            }
+            else if (msg.type === 'playerList') {
+                // 非房主收到玩家列表，重建players (僅保留名稱與id，手牌先不給)
+                players = msg.players.map((p, idx) => ({
+                    peerId: p.peerId,
+                    name: p.name,
+                    cards: []  // 手牌由之後的gameState同步
+                }));
+                // 找出自己的索引
+                myPlayerIndex = players.findIndex(p => p.peerId === myPeerId);
+                updateUI();
+            }
+            else if (msg.type === 'gameState') {
+                // 同步完整遊戲狀態 (包含手牌、牌堆、宣告)
+                if (!isHost) {
+                    // 將接收的狀態還原
+                    players = msg.players.map(p => ({
+                        peerId: p.peerId,
+                        name: p.name,
+                        cards: p.cards || []
+                    }));
+                    pile = msg.pile || [];
+                    currentClaim = msg.currentClaim;
+                    currentPlayerIndex = msg.currentPlayerIndex;
+                    gameActive = msg.gameActive;
+                    selectedCardsIndices = []; // 自己的選取重置
+                    myPlayerIndex = players.findIndex(p => p.peerId === myPeerId);
+                    updateUI();
+                }
+            }
+            else if (msg.type === 'action') {
+                // 收到遊戲動作 (出牌、抓、換回合)
+                if (msg.action === 'play') {
+                    // 更新遊戲狀態 (動作發送者已包含完整狀態)
+                    players = msg.players;
+                    pile = msg.pile;
+                    currentClaim = msg.currentClaim;
+                    currentPlayerIndex = msg.currentPlayerIndex;
+                    gameActive = msg.gameActive;
+                    selectedCardsIndices = []; // 清除自己的選牌
+                    updateUI();
+                } else if (msg.action === 'call') {
+                    players = msg.players;
+                    pile = msg.pile;
+                    currentClaim = msg.currentClaim;
+                    currentPlayerIndex = msg.currentPlayerIndex;
+                    gameActive = msg.gameActive;
+                    selectedCardsIndices = [];
+                    updateUI();
+                } else if (msg.action === 'nextTurn') {
+                    currentPlayerIndex = msg.currentPlayerIndex;
+                    updateUI();
+                }
+            }
+        }
+
+        // 發送完整遊戲狀態給特定連線
+        function sendGameState(conn) {
+            conn.send({
+                type: 'gameState',
+                players: players.map(p => ({ peerId: p.peerId, name: p.name, cards: p.cards })),
+                pile: pile,
+                currentClaim: currentClaim,
+                currentPlayerIndex: currentPlayerIndex,
+                gameActive: gameActive
+            });
+        }
+
+        // ------ 遊戲邏輯 (同前，但加上同步廣播) -----
+        function startNewGame() {
+            if (!isHost) { alert('只有房主可以開始遊戲'); return; }
+            if (players.length < 3) { alert('至少需要3位玩家才能開始'); return; }
+
+            // 建立牌組、發牌
+            const deck = createDeck();
+            playerCount = players.length;
+            // 均發牌
+            const totalCards = deck.length;
+            const base = Math.floor(totalCards / playerCount);
+            let remainder = totalCards % playerCount;
+            let startIdx = 0;
+            for (let i = 0; i < playerCount; i++) {
+                let extra = remainder > 0 ? 1 : 0;
+                remainder--;
+                const endIdx = startIdx + base + extra;
+                players[i].cards = deck.slice(startIdx, endIdx).map(c => ({ ...c }));
+                startIdx = endIdx;
+            }
+
+            pile = [];
+            currentClaim = null;
+            currentPlayerIndex = Math.floor(Math.random() * playerCount);
+            gameActive = true;
+            selectedCardsIndices = [];
+
+            // 廣播給所有連線
+            broadcastToAll({
+                type: 'action',
+                action: 'play',
+                players: players,
+                pile: pile,
+                currentClaim: currentClaim,
+                currentPlayerIndex: currentPlayerIndex,
+                gameActive: gameActive
+            });
+
+            updateUI();
+        }
+
+        function createDeck() {
+            const suits = ['♠','♥','♦','♣'];
+            const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+            let deck = [];
+            for (let s of suits) for (let r of ranks) deck.push({rank: r, suit: s});
+            return shuffleArray(deck);
+        }
+        function shuffleArray(arr) {
+            for (let i = arr.length-1; i>0; i--) {
+                const j = Math.floor(Math.random()*(i+1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function playSelected() {
+            if (!gameActive) return;
+            const player = players[myPlayerIndex];
+            if (selectedCardsIndices.length === 0) return alert('選牌');
+
+            const selectedCards = selectedCardsIndices.map(idx => player.cards[idx]);
+            let claimRank, claimCount;
+            if (!currentClaim) {
+                const rankCounts = {};
+                selectedCards.forEach(c => rankCounts[c.rank] = (rankCounts[c.rank]||0)+1);
+                claimRank = Object.keys(rankCounts).reduce((a,b) => rankCounts[a]>rankCounts[b]?a:b);
+                const inPile = pile.filter(c=>c.rank===claimRank).length;
+                const selectedOf = selectedCards.filter(c=>c.rank===claimRank).length;
+                claimCount = inPile + selectedOf;
+            } else {
+                if (selectedCards.some(c=>c.rank !== currentClaim.rank)) {
+                    alert(`必須打出${currentClaim.rank}`);
+                    return;
+                }
+                claimRank = currentClaim.rank;
+                const inPile = pile.filter(c=>c.rank===claimRank).length;
+                claimCount = inPile + selectedCards.length;
+                if (claimCount <= currentClaim.count) {
+                    alert(`必須大於${currentClaim.count}`);
+                    return;
+                }
+            }
+
+            // 移除手牌
+            const newCards = [...player.cards];
+            selectedCardsIndices.sort((a,b)=>b-a).forEach(idx => newCards.splice(idx,1));
+            player.cards = newCards;
+
+            pile.push(...selectedCards);
+            currentClaim = { rank: claimRank, count: claimCount };
+            selectedCardsIndices = [];
+
+            // 檢查勝負
+            const winnerIdx = players.findIndex(p => p.cards.length === 0);
+            if (winnerIdx !== -1) {
+                gameActive = false;
+                winnerMsgDiv.style.display = 'block';
+                winnerMsgDiv.innerText = `🏆 ${players[winnerIdx].name} 獲勝！`;
+            } else {
+                // 輪到下一位
+                do {
+                    currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+                } while (players[currentPlayerIndex].cards.length === 0 && gameActive);
+            }
+
+            // 廣播更新
+            broadcastToAll({
+                type: 'action',
+                action: 'play',
+                players: players,
+                pile: pile,
+                currentClaim: currentClaim,
+                currentPlayerIndex: currentPlayerIndex,
+                gameActive: gameActive
+            });
+
+            updateUI();
+        }
+
+        function callBullshit() {
+            if (!gameActive || !currentClaim) return;
+            const callerIdx = myPlayerIndex;
+            const lastPlayerIdx = (currentPlayerIndex - 1 + players.length) % players.length; // 上家
+            const totalRankCount = pile.filter(c => c.rank === currentClaim.rank).length;
+            const isBluff = totalRankCount !== currentClaim.count;
+
+            let loserIdx = isBluff ? lastPlayerIdx : callerIdx;
+            // 把牌給輸家
+            players[loserIdx].cards.push(...pile);
+            pile = [];
+            currentClaim = null;
+
+            // 新回合由贏家開始 (贏家是另一人)
+            const winnerIdx = isBluff ? callerIdx : lastPlayerIdx;
+            currentPlayerIndex = winnerIdx;
+
+            // 勝負檢查
+            if (players.some(p => p.cards.length === 0)) {
+                gameActive = false;
+                const w = players.find(p => p.cards.length === 0);
+                winnerMsgDiv.style.display = 'block';
+                winnerMsgDiv.innerText = `🏆 ${w.name} 獲勝！`;
+            }
+
+            broadcastToAll({
+                type: 'action',
+                action: 'call',
+                players: players,
+                pile: pile,
+                currentClaim: currentClaim,
+                currentPlayerIndex: currentPlayerIndex,
+                gameActive: gameActive
+            });
+            updateUI();
+        }
+
+        // 渲染 (使用圖片)
+        function updateUI() {
+            // 略同前 (但保留重要部分)
+            playersContainer.innerHTML = '';
+            players.forEach((p, idx) => {
+                const spot = document.createElement('div');
+                spot.className = `player-spot ${gameActive && idx===currentPlayerIndex ? 'active-turn' : ''}`;
+                spot.innerHTML = `<div class="player-name">${p.name} (${p.cards.length})</div>`;
+                const cardsDiv = document.createElement('div'); cardsDiv.className = 'cards-area';
+                if (p.cards.length===0) cardsDiv.innerHTML = '<div style="color:#ffe5b4;">✨無牌</div>';
+                else {
+                    p.cards.forEach((card, cardIdx) => {
+                        const cardEl = document.createElement('div');
+                        cardEl.className = 'card-image';
+                        // 只有自己能看到牌面
+                        if (idx === myPlayerIndex) {
+                            cardEl.style.backgroundImage = `url('${getCardImageURL(card.rank, card.suit)}')`;
+                            cardEl.style.cursor = 'pointer';
+                            cardEl.addEventListener('click', () => toggleSelect(cardIdx));
+                            if (selectedCardsIndices.includes(cardIdx)) cardEl.classList.add('selected-card');
+                        } else {
+                            cardEl.style.backgroundImage = `url('${CARD_BACK_URL}')`;
+                        }
+                        cardsDiv.appendChild(cardEl);
+                    });
+                }
+                spot.appendChild(cardsDiv);
+                playersContainer.appendChild(spot);
+            });
+
+            // 中央牌堆
+            pileCardsContainer.innerHTML = '';
+            if (pile.length===0) pileCardsContainer.innerText = '🃏 空';
+            else {
+                pile.slice(-10).forEach(c => {
+                    let d = document.createElement('div');
+                    d.className = 'card-image';
+                    d.style.backgroundImage = `url('${getCardImageURL(c.rank, c.suit)}')`;
+                    pileCardsContainer.appendChild(d);
+                });
+                if(pile.length>10) pileCardsContainer.innerHTML+=`<div style="color:white;">⋯等${pile.length}張</div>`;
+            }
+
+            if (currentClaim) {
+                claimedRankSpan.innerText = currentClaim.rank;
+                claimedCountSpan.innerText = currentClaim.count;
+            } else { claimedRankSpan.innerText='?'; claimedCountSpan.innerText='?'; }
+
+            // 按鈕
+            const myTurn = gameActive && myPlayerIndex === currentPlayerIndex && players[myPlayerIndex]?.cards.length>0;
+            playSelectedBtn.disabled = !(myTurn && selectedCardsIndices.length>0);
+            callBullshitBtn.disabled = !(gameActive && currentClaim && myTurn);
+
+            turnIndicator.innerText = gameActive ? `🎯 回合: ${players[currentPlayerIndex].name}` : (winnerMsgDiv.style.display==='block'? '🏁 遊戲結束': '⏳ 等待開始');
+        }
+
+        function toggleSelect(cardIdx) {
+            const pos = selectedCardsIndices.indexOf(cardIdx);
+            pos === -1 ? selectedCardsIndices.push(cardIdx) : selectedCardsIndices.splice(pos,1);
+            updateUI();
+        }
+
+        // 事件綁定
+        connectBtn.addEventListener('click', () => {
+            const target = peerIdInput.value.trim();
+            if(target) connectToPeer(target);
+        });
+
+        broadcastGameBtn.addEventListener('click', startNewGame);
+
+        playSelectedBtn.addEventListener('click', playSelected);
+        callBullshitBtn.addEventListener('click', callBullshit);
+
+        initPeer();
+    })();
+</script>
+</body>
+</html>
